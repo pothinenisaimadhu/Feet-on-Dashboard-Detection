@@ -1,6 +1,6 @@
 """
 Streamlit UI — OOP (Out-of-Position) Passenger Detection
-Supports: webcam live feed  |  video file upload
+Supports: video file upload  |  webcam (local only)
 """
 
 import sys, os
@@ -43,13 +43,16 @@ st.markdown("""
         font-size: 1.4rem; font-weight: 700;
         text-align: center; letter-spacing: 1px;
     }
-    .metric-box {
-        background: #1e2130; border-radius: 8px;
-        padding: 10px 16px; margin: 4px 0;
-    }
     .stProgress > div > div { background-color: #ff4444; }
 </style>
 """, unsafe_allow_html=True)
+
+# Detect Streamlit Cloud — no webcam available there
+_ON_CLOUD = bool(
+    os.environ.get("STREAMLIT_SHARING_MODE")
+    or os.environ.get("IS_STREAMLIT_CLOUD")
+    or os.path.exists("/mount/src")          # reliable Cloud indicator
+)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -58,13 +61,15 @@ with st.sidebar:
     st.caption("Out-of-Position Passenger Detection")
     st.divider()
 
-    mode = st.radio("Input source", ["📁 Upload Video", "📷 Webcam"], index=0)
+    _mode_options = ["📁 Upload Video"] if _ON_CLOUD else ["📁 Upload Video", "📷 Webcam"]
+    mode = st.radio("Input source", _mode_options, index=0)
+    if _ON_CLOUD:
+        st.caption("📷 Webcam unavailable on Streamlit Cloud — run locally for live feed.")
     st.divider()
 
     st.subheader("⚙️ Settings")
     show_skeleton = st.toggle("Show joints & leg lines", value=True)
     show_roi      = st.toggle("Show dashboard ROI", value=True)
-    conf_thresh   = st.slider("Confidence display threshold", 0.0, 1.0, 0.0, 0.05)
     st.divider()
 
     st.subheader("📊 Thresholds")
@@ -83,18 +88,8 @@ def load_models():
 detector, pose = load_models()
 
 
-# ── Helper: process one frame and return annotated BGR + stats ────────────────
-def process_frame(
-    frame: np.ndarray,
-    roi: DashboardROI,
-    smoother: TemporalSmoother,
-    last_box,
-    miss_streak: int,
-    frame_idx: int,
-    high_ankle: bool,
-    _last_conf: float,
-) -> tuple[np.ndarray, bool, float, str, any, int, float]:
-
+# ── Helper: process one frame ─────────────────────────────────────────────────
+def process_frame(frame, roi, smoother, last_box, miss_streak, frame_idx, high_ankle, _last_conf):
     h, w = frame.shape[:2]
     need_detect = (
         last_box is None
@@ -107,19 +102,16 @@ def process_frame(
             last_box, _last_conf, miss_streak = box, conf, 0
         else:
             miss_streak += 1
-    else:
-        conf = _last_conf
 
     crop_rect = None
     if last_box is not None:
         _, crop_rect = detector.crop_for_pose(frame, last_box)
 
-    pd = pose.analyse(frame, last_box, crop_rect)
+    pd       = pose.analyse(frame, last_box, crop_rect)
     has_pose = pd["landmarks"] is not None
     raw_pos, score, debug = score_frame(pd, roi, high_ankle_mode=high_ankle)
-    is_pos = smoother.update(raw_pos, has_pose, score)
+    is_pos   = smoother.update(raw_pos, has_pose, score)
 
-    # Optionally suppress joints/ROI based on sidebar toggles
     _pd = pd if show_skeleton else {k: None if "px" in k else v for k, v in pd.items()}
     annotated = render(
         frame.copy(),
@@ -132,29 +124,9 @@ def process_frame(
 
 
 class _NullROI:
-    """ROI stub that draws nothing and never matches."""
     def __init__(self, w, h): pass
     def contains(self, x, y): return False
     def draw(self, frame, **_): return frame
-
-
-# ── Stats sidebar updater ─────────────────────────────────────────────────────
-def sidebar_stats(score: float, is_pos: bool, frame_idx: int,
-                  pos_count: int, total: int):
-    with st.sidebar:
-        st.divider()
-        st.subheader("📈 Live Stats")
-        verdict_html = (
-            '<div class="verdict-pos">⚠️ FEET ON DASHBOARD</div>'
-            if is_pos else
-            '<div class="verdict-neg">✅ NORMAL POSTURE</div>'
-        )
-        st.markdown(verdict_html, unsafe_allow_html=True)
-        st.metric("Confidence", f"{score:.2f}")
-        st.progress(min(score, 1.0))
-        st.metric("Frame", frame_idx)
-        if total > 0:
-            st.metric("Positive rate", f"{100*pos_count//total}%")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -162,15 +134,12 @@ def sidebar_stats(score: float, is_pos: bool, frame_idx: int,
 # ══════════════════════════════════════════════════════════════════════════════
 if "Upload" in mode:
     st.header("📁 Video Upload")
-    uploaded = st.file_uploader(
-        "Drop an MP4 / AVI / MOV file", type=["mp4", "avi", "mov", "mkv"]
-    )
+    uploaded = st.file_uploader("Drop an MP4 / AVI / MOV file", type=["mp4", "avi", "mov", "mkv"])
 
     if uploaded is None:
         st.info("Upload a video to begin analysis.")
         st.stop()
 
-    # Save to temp file
     suffix = Path(uploaded.name).suffix
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     tmp.write(uploaded.read())
@@ -185,7 +154,7 @@ if "Upload" in mode:
         st.video(uploaded)
         st.stop()
 
-    cap = cv2.VideoCapture(src_path)
+    cap          = cv2.VideoCapture(src_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps          = cap.get(cv2.CAP_PROP_FPS) or 30.0
     w            = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -194,13 +163,12 @@ if "Upload" in mode:
     roi      = DashboardROI(w, h)
     smoother = TemporalSmoother()
 
-    # Bootstrap high_ankle from first 120 frames
     with st.spinner("Bootstrapping ankle profile…"):
         engine_tmp = OOPEngine.__new__(OOPEngine)
-        engine_tmp.detector    = detector
-        engine_tmp.pose        = pose
-        engine_tmp._last_box   = None
-        engine_tmp._last_conf  = 0.0
+        engine_tmp.detector     = detector
+        engine_tmp.pose         = pose
+        engine_tmp._last_box    = None
+        engine_tmp._last_conf   = 0.0
         engine_tmp._miss_streak = 0
         high_ankle = engine_tmp._bootstrap_high_ankle(cap)
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -208,18 +176,18 @@ if "Upload" in mode:
     mode_tag = "HIGH-ANKLE" if high_ankle else "STANDARD"
     st.caption(f"Detection mode: **{mode_tag}**  |  {total_frames} frames  |  {fps:.1f} fps")
 
-    # ── Export path ───────────────────────────────────────────────────────────
+    # Display every 8 frames at 50% scale — big speedup on Cloud
+    DISPLAY_EVERY = 8
+    SCALE         = 0.5
+
     out_tmp = None
     writer  = None
     if export_btn:
         out_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-        writer = cv2.VideoWriter(
-            out_tmp.name,
-            cv2.VideoWriter_fourcc(*"mp4v"),
-            fps, (w, h),
+        writer  = cv2.VideoWriter(
+            out_tmp.name, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h)
         )
 
-    # ── Layout ────────────────────────────────────────────────────────────────
     frame_ph  = st.empty()
     prog_bar  = st.progress(0)
     stat_cols = st.columns(4)
@@ -240,18 +208,13 @@ if "Upload" in mode:
             break
 
         annotated, is_pos, score, debug, last_box, miss_streak, _last_conf = process_frame(
-            frame, roi, smoother, last_box, miss_streak,
-            frame_idx, high_ankle, _last_conf,
+            frame, roi, smoother, last_box, miss_streak, frame_idx, high_ankle, _last_conf,
         )
-
         pos_count += int(is_pos)
 
-        # Display every 2nd frame to keep UI responsive
-        if frame_idx % 2 == 0:
-            frame_ph.image(
-                cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
-                channels="RGB", use_container_width=True,
-            )
+        if frame_idx % DISPLAY_EVERY == 0:
+            preview = cv2.resize(annotated, (int(w * SCALE), int(h * SCALE)))
+            frame_ph.image(cv2.cvtColor(preview, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
             prog_bar.progress(min((frame_idx + 1) / max(total_frames, 1), 1.0))
             score_ph.metric("Confidence", f"{score:.2f}")
             pos_ph.metric("Verdict", "⚠️ OOP" if is_pos else "✅ Normal")
@@ -268,9 +231,8 @@ if "Upload" in mode:
         writer.release()
 
     prog_bar.progress(1.0)
-    st.success(f"Done — {frame_idx} frames processed. Positive rate: {100*pos_count//frame_idx}%")
+    st.success(f"Done — {frame_idx} frames processed. Positive rate: {100*pos_count//max(frame_idx,1)}%")
 
-    # Download button for exported video
     if out_tmp:
         with open(out_tmp.name, "rb") as f:
             st.download_button(
@@ -283,13 +245,12 @@ if "Upload" in mode:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MODE 2 — WEBCAM
+# MODE 2 — WEBCAM (local only)
 # ══════════════════════════════════════════════════════════════════════════════
 else:
     st.header("📷 Webcam Live Feed")
 
-    cam_idx = st.number_input("Camera index", min_value=0, max_value=4, value=0, step=1)
-
+    cam_idx   = st.number_input("Camera index", min_value=0, max_value=4, value=0, step=1)
     col1, col2 = st.columns([1, 1])
     start_btn = col1.button("▶ Start", type="primary", use_container_width=True)
     stop_btn  = col2.button("⏹ Stop",  use_container_width=True)
@@ -311,24 +272,23 @@ else:
         st.session_state.cam_running = False
         st.stop()
 
-    # Read one frame to get dimensions
     ok, probe = cap.read()
     if not ok:
         st.error("Camera opened but could not read a frame.")
         cap.release()
         st.stop()
 
-    h, w = probe.shape[:2]
-    roi      = DashboardROI(w, h)
-    smoother = TemporalSmoother()
-    high_ankle = False   # webcam: no bootstrap, use standard mode
+    h, w       = probe.shape[:2]
+    roi        = DashboardROI(w, h)
+    smoother   = TemporalSmoother()
+    high_ankle = False
 
-    frame_ph = st.empty()
+    frame_ph  = st.empty()
     stat_cols = st.columns(4)
-    score_ph = stat_cols[0].empty()
-    pos_ph   = stat_cols[1].empty()
-    fps_ph   = stat_cols[2].empty()
-    mode_ph  = stat_cols[3].empty()
+    score_ph  = stat_cols[0].empty()
+    pos_ph    = stat_cols[1].empty()
+    fps_ph    = stat_cols[2].empty()
+    mode_ph   = stat_cols[3].empty()
 
     last_box    = None
     miss_streak = 0
@@ -337,7 +297,6 @@ else:
     pos_count   = 0
     t0          = time.time()
 
-    # Re-push the probe frame as frame 0
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     while st.session_state.cam_running:
@@ -346,28 +305,18 @@ else:
             break
 
         annotated, is_pos, score, debug, last_box, miss_streak, _last_conf = process_frame(
-            frame, roi, smoother, last_box, miss_streak,
-            frame_idx, high_ankle, _last_conf,
+            frame, roi, smoother, last_box, miss_streak, frame_idx, high_ankle, _last_conf,
         )
-
         pos_count += int(is_pos)
-        elapsed = time.time() - t0
-        live_fps = frame_idx / elapsed if elapsed > 0 else 0.0
+        live_fps   = frame_idx / max(time.time() - t0, 1e-6)
 
-        frame_ph.image(
-            cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
-            channels="RGB", use_container_width=True,
-        )
+        frame_ph.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
         score_ph.metric("Confidence", f"{score:.2f}")
-        pos_ph.metric("Verdict",  "⚠️ OOP" if is_pos else "✅ Normal")
+        pos_ph.metric("Verdict", "⚠️ OOP" if is_pos else "✅ Normal")
         fps_ph.metric("FPS", f"{live_fps:.1f}")
         mode_ph.metric("Frame", frame_idx)
 
-        sidebar_stats(score, is_pos, frame_idx, pos_count, frame_idx + 1)
-
         frame_idx += 1
-
-        # Honour stop button between frames
         if stop_btn:
             break
 
