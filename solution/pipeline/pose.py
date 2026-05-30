@@ -74,11 +74,12 @@ class PoseEstimator:
             return out
 
         kps_all = results.keypoints.data.cpu().numpy()
+        has_conf = kps_all.ndim == 3 and kps_all.shape[2] == 3
         best_idx = None
         best_hip_x = 0.0
 
         for i, kp in enumerate(kps_all):
-            if kp[_L_HIP, 2] < config.KP_MIN_CONF and kp[_R_HIP, 2] < config.KP_MIN_CONF:
+            if has_conf and kp[_L_HIP, 2] < config.KP_MIN_CONF and kp[_R_HIP, 2] < config.KP_MIN_CONF:
                 continue
             avg_hip_x = (kp[_L_HIP, 0] + kp[_R_HIP, 0]) / 2 / w
             if avg_hip_x >= config.PASSENGER_HIP_X_MIN and avg_hip_x > best_hip_x:
@@ -96,7 +97,7 @@ class PoseEstimator:
             ("left", _L_HIP, _L_KNEE, _L_ANKLE),
             ("right", _R_HIP, _R_KNEE, _R_ANKLE),
         ]:
-            if min(kp[hip_i, 2], kp[knee_i, 2], kp[ankle_i, 2]) < config.KP_MIN_CONF:
+            if has_conf and min(kp[hip_i, 2], kp[knee_i, 2], kp[ankle_i, 2]) < config.KP_MIN_CONF:
                 continue
             hip_pt = (int(kp[hip_i, 0]), int(kp[hip_i, 1]))
             knee_pt = (int(kp[knee_i, 0]), int(kp[knee_i, 1]))
