@@ -1,0 +1,39 @@
+Collecting mediapipe
+  Using cached mediapipe-0.10.35-py3-none-win_amd64.whl.metadata (9.8 kB)
+Collecting absl-py~=2.3 (from mediapipe)
+  Using cached absl_py-2.4.0-py3-none-any.whl.metadata (3.3 kB)
+Requirement already satisfied: certifi in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from mediapipe) (2026.5.20)
+Requirement already satisfied: numpy in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from mediapipe) (2.4.6)
+Collecting sounddevice~=0.5 (from mediapipe)
+  Using cached sounddevice-0.5.5-py3-none-win_amd64.whl.metadata (1.4 kB)
+Collecting flatbuffers~=25.9 (from mediapipe)
+  Using cached flatbuffers-25.12.19-py2.py3-none-any.whl.metadata (1.0 kB)
+Collecting opencv-contrib-python (from mediapipe)
+  Using cached opencv_contrib_python-4.13.0.92-cp37-abi3-win_amd64.whl.metadata (20 kB)
+Requirement already satisfied: matplotlib in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from mediapipe) (3.10.9)
+Collecting cffi (from sounddevice~=0.5->mediapipe)
+  Using cached cffi-2.0.0-cp314-cp314-win_amd64.whl.metadata (2.6 kB)
+Collecting pycparser (from cffi->sounddevice~=0.5->mediapipe)
+  Using cached pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+Requirement already satisfied: contourpy>=1.0.1 in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from matplotlib->mediapipe) (1.3.3)
+Requirement already satisfied: cycler>=0.10 in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from matplotlib->mediapipe) (0.12.1)
+Requirement already satisfied: fonttools>=4.22.0 in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from matplotlib->mediapipe) (4.63.0)
+Requirement already satisfied: kiwisolver>=1.3.1 in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from matplotlib->mediapipe) (1.5.0)
+Requirement already satisfied: packaging>=20.0 in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from matplotlib->mediapipe) (26.2)
+Requirement already satisfied: pillow>=8 in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from matplotlib->mediapipe) (12.2.0)
+Requirement already satisfied: pyparsing>=3 in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from matplotlib->mediapipe) (3.3.2)
+Requirement already satisfied: python-dateutil>=2.7 in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from matplotlib->mediapipe) (2.9.0.post0)
+Requirement already satisfied: six>=1.5 in c:\users\saima\appdata\roaming\uv\tools\free-claude-code\lib\site-packages (from python-dateutil>=2.7->matplotlib->mediapipe) (1.17.0)
+Using cached mediapipe-0.10.35-py3-none-win_amd64.whl (10.9 MB)
+Using cached absl_py-2.4.0-py3-none-any.whl (135 kB)
+Using cached flatbuffers-25.12.19-py2.py3-none-any.whl (26 kB)
+Using cached sounddevice-0.5.5-py3-none-win_amd64.whl (365 kB)
+Using cached cffi-2.0.0-cp314-cp314-win_amd64.whl (185 kB)
+Using cached opencv_contrib_python-4.13.0.92-cp37-abi3-win_amd64.whl (46.5 MB)
+Using cached pycparser-3.0-py3-none-any.whl (48 kB)
+Installing collected packages: flatbuffers, pycparser, opencv-contrib-python, absl-py, cffi, sounddevice, mediapipe
+
+Successfully installed absl-py-2.4.0 cffi-2.0.0 flatbuffers-25.12.19 mediapipe-0.10.35 opencv-contrib-python-4.13.0.92 pycparser-3.0 sounddevice-0.5.5
+
+[notice] A new release of pip is available: 25.2 -> 26.1.1
+[notice] To update, run: python.exe -m pip install --upgrade pip

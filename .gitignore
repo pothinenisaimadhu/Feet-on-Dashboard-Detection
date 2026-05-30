@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.env
+
+# Model weights (large binaries — download separately)
+*.pt
+*.pth
+*.onnx
+*.task
+
+# Dataset images & labels
+dataset/images/
+dataset/labels/
+
+# Video outputs
+output/
+output_vsvig/
+debug_frames/
+debug_output/
+
+# Input videos (not committed — too large)
+input/
+
+# Streamlit cache
+.streamlit/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
