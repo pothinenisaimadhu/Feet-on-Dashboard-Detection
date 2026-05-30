@@ -5,20 +5,10 @@ Each frame: detect all persons, keep those on the passenger side (right),
 pick the largest box as the front passenger selection.
 """
 
-import os
 import numpy as np
 from ultralytics import YOLO
+from .model_utils import ensure_yolo
 import config
-
-
-def _model_path() -> str:
-    """Resolve yolov8n.pt next to submission/ root."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    for base in (os.path.join(here, "..", ".."), os.path.join(here, "..")):
-        p = os.path.normpath(os.path.join(base, config.PERSON_MODEL))
-        if os.path.isfile(p):
-            return p
-    return config.PERSON_MODEL
 
 
 def pad_box(box: np.ndarray, w: int, h: int) -> np.ndarray:
@@ -35,7 +25,7 @@ def pad_box(box: np.ndarray, w: int, h: int) -> np.ndarray:
 
 class PassengerDetector:
     def __init__(self):
-        self._model = YOLO(_model_path())
+        self._model = YOLO(ensure_yolo(config.PERSON_MODEL))
 
     def detect(self, frame: np.ndarray) -> tuple[np.ndarray | None, float]:
         """

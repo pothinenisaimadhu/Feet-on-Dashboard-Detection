@@ -4,13 +4,12 @@ Pose estimation — YOLOv8n-pose (primary) + MediaPipe (fallback).
 YOLO pose is more reliable in this cabin dataset (thick clothing, top-down view).
 """
 
-import os
 import numpy as np
 from ultralytics import YOLO
 from mediapipe import Image, ImageFormat
 from mediapipe.tasks.python import vision as mp_vision
 from mediapipe.tasks import python as mp_tasks
-from .model_utils import ensure_model
+from .model_utils import ensure_model, ensure_yolo
 import config
 
 # COCO keypoint indices
@@ -30,12 +29,7 @@ def _knee_angle_px(hip, knee, ankle) -> float:
 
 
 def _pose_model_path() -> str:
-    here = os.path.dirname(os.path.abspath(__file__))
-    for base in (os.path.join(here, "..", ".."), os.path.join(here, "..")):
-        p = os.path.normpath(os.path.join(base, "yolov8n-pose.pt"))
-        if os.path.isfile(p):
-            return p
-    return "yolov8n-pose.pt"
+    return ensure_yolo("yolov8n-pose.pt")
 
 
 class PoseEstimator:
