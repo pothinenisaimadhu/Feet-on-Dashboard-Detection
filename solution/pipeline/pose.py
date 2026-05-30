@@ -85,7 +85,7 @@ class PoseEstimator:
         best_hip_x = 0.0
 
         for i, xy in enumerate(xy_all):
-            if xy.shape[0] <= max(_L_HIP, _R_HIP):
+            if xy.ndim != 2 or xy.shape[0] <= max(_L_HIP, _R_HIP) or xy.shape[1] < 2:
                 continue
             conf = conf_all[i] if conf_all is not None else None
             if conf is not None:
@@ -193,7 +193,10 @@ class PoseEstimator:
         passenger_box=None,
         crop_rect: tuple[int, int, int, int] | None = None,
     ) -> dict:
-        out = self._from_yolo(frame)
+        try:
+            out = self._from_yolo(frame)
+        except Exception:
+            out = self._empty()
         if out["landmarks"] is None:
             out = self._from_mediapipe(frame, crop_rect)
         return out
