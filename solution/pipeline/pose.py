@@ -73,15 +73,25 @@ class PoseEstimator:
         if results.keypoints is None or len(results.keypoints) == 0:
             return out
 
-        kps_all = results.keypoints.data.cpu().numpy()
-        has_conf = kps_all.ndim == 3 and kps_all.shape[2] == 3
+        # xy: (N, 17, 2)  conf: (N, 17) or None
+        xy_all = results.keypoints.xy.cpu().numpy()   # always present
+        conf_all = (
+            results.keypoints.conf.cpu().numpy()
+            if results.keypoints.conf is not None
+            else None
+        )
+
         best_idx = None
         best_hip_x = 0.0
 
-        for i, kp in enumerate(kps_all):
-            if has_conf and kp[_L_HIP, 2] < config.KP_MIN_CONF and kp[_R_HIP, 2] < config.KP_MIN_CONF:
+        for i, xy in enumerate(xy_all):
+            if xy.shape[0] <= max(_L_HIP, _R_HIP):
                 continue
-            avg_hip_x = (kp[_L_HIP, 0] + kp[_R_HIP, 0]) / 2 / w
+            conf = conf_all[i] if conf_all is not None else None
+            if conf is not None:
+                if conf[_L_HIP] < config.KP_MIN_CONF and conf[_R_HIP] < config.KP_MIN_CONF:
+                    continue
+            avg_hip_x = (xy[_L_HIP, 0] + xy[_R_HIP, 0]) / 2 / w
             if avg_hip_x >= config.PASSENGER_HIP_X_MIN and avg_hip_x > best_hip_x:
                 best_hip_x = avg_hip_x
                 best_idx = i
@@ -89,25 +99,27 @@ class PoseEstimator:
         if best_idx is None:
             return out
 
-        kp = kps_all[best_idx]
-        out["landmarks"] = kp
+        xy = xy_all[best_idx]
+        conf = conf_all[best_idx] if conf_all is not None else None
+        out["landmarks"] = xy
         out["pose_source"] = "yolo"
 
         for side, hip_i, knee_i, ankle_i in [
             ("left", _L_HIP, _L_KNEE, _L_ANKLE),
             ("right", _R_HIP, _R_KNEE, _R_ANKLE),
         ]:
-            if has_conf and min(kp[hip_i, 2], kp[knee_i, 2], kp[ankle_i, 2]) < config.KP_MIN_CONF:
-                continue
-            hip_pt = (int(kp[hip_i, 0]), int(kp[hip_i, 1]))
-            knee_pt = (int(kp[knee_i, 0]), int(kp[knee_i, 1]))
-            ankle_pt = (int(kp[ankle_i, 0]), int(kp[ankle_i, 1]))
-            out[f"{side}_knee_angle"] = _knee_angle_px(hip_pt, knee_pt, ankle_pt)
-            out[f"{side}_ankle_px"] = ankle_pt
-            out[f"{side}_knee_px"] = knee_pt
-            out[f"{side}_hip_y_norm"] = hip_pt[1] / h
-            out[f"{side}_ankle_y_norm"] = ankle_pt[1] / h
-            out[f"{side}_ankle_x_norm"] = ankle_pt[0] / w
+            if conf is not None:
+                if min(conf[hip_i], conf[knee_i], conf[ankle_i]) < config.KP_MIN_CONF:
+                    continue
+            hip_pt   = (int(xy[hip_i,   0]), int(xy[hip_i,   1]))
+            knee_pt  = (int(xy[knee_i,  0]), int(xy[knee_i,  1]))
+            ankle_pt = (int(xy[ankle_i, 0]), int(xy[ankle_i, 1]))
+            out[f"{side}_knee_angle"]    = _knee_angle_px(hip_pt, knee_pt, ankle_pt)
+            out[f"{side}_ankle_px"]      = ankle_pt
+            out[f"{side}_knee_px"]       = knee_pt
+            out[f"{side}_hip_y_norm"]    = hip_pt[1] / h
+            out[f"{side}_ankle_y_norm"]  = ankle_pt[1] / h
+            out[f"{side}_ankle_x_norm"]  = ankle_pt[0] / w
 
         return out
 
