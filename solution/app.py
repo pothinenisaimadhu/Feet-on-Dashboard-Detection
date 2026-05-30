@@ -194,13 +194,13 @@ if "Upload" in mode:
     roi      = DashboardROI(w, h)
     smoother = TemporalSmoother()
 
-    # Bootstrap high_ankle from first 120 frames
+    # Bootstrap: sample every 4th frame, max 30 frames
     with st.spinner("Bootstrapping ankle profile…"):
         engine_tmp = OOPEngine.__new__(OOPEngine)
-        engine_tmp.detector    = detector
-        engine_tmp.pose        = pose
-        engine_tmp._last_box   = None
-        engine_tmp._last_conf  = 0.0
+        engine_tmp.detector     = detector
+        engine_tmp.pose         = pose
+        engine_tmp._last_box    = None
+        engine_tmp._last_conf   = 0.0
         engine_tmp._miss_streak = 0
         high_ankle = engine_tmp._bootstrap_high_ankle(cap)
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -208,7 +208,10 @@ if "Upload" in mode:
     mode_tag = "HIGH-ANKLE" if high_ankle else "STANDARD"
     st.caption(f"Detection mode: **{mode_tag}**  |  {total_frames} frames  |  {fps:.1f} fps")
 
-    # ── Export path ───────────────────────────────────────────────────────────
+    # ── Process all frames first, update UI every DISPLAY_EVERY frames ───────
+    DISPLAY_EVERY = 8   # redraw UI only every N frames — big speedup on Cloud
+    SCALE         = 0.5 # downscale preview to reduce encode/transfer cost
+
     out_tmp = None
     writer  = None
     if export_btn:
@@ -219,7 +222,6 @@ if "Upload" in mode:
             fps, (w, h),
         )
 
-    # ── Layout ────────────────────────────────────────────────────────────────
     frame_ph  = st.empty()
     prog_bar  = st.progress(0)
     stat_cols = st.columns(4)
@@ -243,13 +245,13 @@ if "Upload" in mode:
             frame, roi, smoother, last_box, miss_streak,
             frame_idx, high_ankle, _last_conf,
         )
-
         pos_count += int(is_pos)
 
-        # Display every 2nd frame to keep UI responsive
-        if frame_idx % 2 == 0:
+        if frame_idx % DISPLAY_EVERY == 0:
+            # Downscale preview before sending to browser
+            preview = cv2.resize(annotated, (int(w * SCALE), int(h * SCALE)))
             frame_ph.image(
-                cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
+                cv2.cvtColor(preview, cv2.COLOR_BGR2RGB),
                 channels="RGB", use_container_width=True,
             )
             prog_bar.progress(min((frame_idx + 1) / max(total_frames, 1), 1.0))
@@ -268,9 +270,8 @@ if "Upload" in mode:
         writer.release()
 
     prog_bar.progress(1.0)
-    st.success(f"Done — {frame_idx} frames processed. Positive rate: {100*pos_count//frame_idx}%")
+    st.success(f"Done — {frame_idx} frames processed. Positive rate: {100*pos_count//max(frame_idx,1)}%")
 
-    # Download button for exported video
     if out_tmp:
         with open(out_tmp.name, "rb") as f:
             st.download_button(

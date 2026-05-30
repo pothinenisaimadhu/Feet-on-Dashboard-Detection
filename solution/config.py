@@ -5,9 +5,9 @@ Central configuration — all tunable parameters in one place.
 # ── Passenger selector (YOLOv8n person detector, class 0) ─────────────────
 PERSON_MODEL   = "yolov8n.pt"
 PERSON_CONF    = 0.40
-IMGSZ          = 480
-DETECT_EVERY   = 2       # YOLO selection every N frames; reuse box between
-DETECT_MISS_MAX = 8      # force re-detect after N frames without a valid box
+IMGSZ          = 320
+DETECT_EVERY   = 4       # YOLO selection every N frames; reuse box between
+DETECT_MISS_MAX = 12     # force re-detect after N frames without a valid box
 PASSENGER_SIDE = "right"
 BBOX_PAD_RATIO = 0.08
 

@@ -88,15 +88,14 @@ class OOPEngine:
         writer.release()
 
     def _bootstrap_high_ankle(self, cap) -> bool:
-        """Profile3-style: median ankle_y always high -> shelf/ROI scoring path."""
+        """Sample up to 30 frames to detect high-ankle cabin profile."""
         ankle_ys: list[float] = []
         knee_angles: list[float] = []
         n = 0
-        while n < 120:
+        while n < 30:
             ok, frame = cap.read()
             if not ok:
                 break
-            # Bug 3 fix: use passenger-filtered detection during bootstrap
             box, _ = self.detector.detect(frame)
             _, crop_rect = self.detector.crop_for_pose(frame, box) if box is not None else (None, None)
             pd = self.pose.analyse(frame, box, crop_rect)
@@ -111,7 +110,7 @@ class OOPEngine:
                 if ka:
                     knee_angles.append(ka)
             n += 1
-        if len(ankle_ys) < 6:
+        if len(ankle_ys) < 4:
             return False
         import statistics
         med_ay   = statistics.median(ankle_ys)
