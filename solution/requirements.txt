@@ -1,5 +1,5 @@
 ultralytics==8.3.75
 opencv-python-headless==4.10.0.84
-numpy==1.26.4
+numpy>=1.26.4,<2.0
 mediapipe==0.10.21
 streamlit>=1.35.0
